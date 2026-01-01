@@ -15,32 +15,108 @@
   <body>
     <div class="bg-veil"></div>
     <main class="page">
-      <header class="hero">
+      <header class="hero" id="hero">
         <div>
           <p class="eyebrow">PlayTime USA</p>
           <h1>Owner Console</h1>
           <p class="subtitle">Manage tenants, credits, and brand controls.</p>
         </div>
-        <div class="status" id="statusBadge">Disconnected</div>
+        <div class="hero-actions">
+          <div class="status" id="statusBadge">Disconnected</div>
+          <button class="btn ghost" id="logoutBtn" hidden>Logout</button>
+        </div>
       </header>
 
-      <section class="card login" id="loginCard">
-        <div class="card-header">
-          <h2>Owner Sign In</h2>
-          <p>Use your owner credentials to access the console.</p>
+      <section class="login-screen" id="loginCard">
+        <div class="login-wrapper">
+          <form class="login-form" id="loginForm">
+            <img class="login-logo" src="favicon.png" alt="PlayTime USA logo" />
+            <span class="login-tagline">Administrative Access Terminal</span>
+
+            <div class="login-input">
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                aria-hidden="true"
+              >
+                <defs>
+                  <linearGradient
+                    id="gradient-stroke"
+                    x1="0"
+                    y1="0"
+                    x2="24"
+                    y2="24"
+                    gradientUnits="userSpaceOnUse"
+                  >
+                    <stop offset="0%" stop-color="black" />
+                    <stop offset="100%" stop-color="white" />
+                  </linearGradient>
+                </defs>
+                <g stroke="url(#gradient-stroke)" fill="none" stroke-width="1">
+                  <path d="M12 11a4 4 0 1 0 0-8a4 4 0 0 0 0 8Z" />
+                  <path d="M4 20c0-3.3137 3.5817-6 8-6s8 2.6863 8 6" />
+                </g>
+              </svg>
+
+              <input
+                class="login-field"
+                type="text"
+                id="loginUsername"
+                placeholder="Username"
+                autocomplete="username"
+              />
+            </div>
+
+            <div class="login-input">
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                aria-hidden="true"
+              >
+                <defs>
+                  <linearGradient
+                    id="gradient-stroke"
+                    x1="0"
+                    y1="0"
+                    x2="24"
+                    y2="24"
+                    gradientUnits="userSpaceOnUse"
+                  >
+                    <stop offset="0%" stop-color="black" />
+                    <stop offset="100%" stop-color="white" />
+                  </linearGradient>
+                </defs>
+                <g stroke="url(#gradient-stroke)" fill="none" stroke-width="1">
+                  <path d="M3.5 15.5503L9.20029 9.85L12.3503 13L11.6 13.7503H10.25L9.8 15.1003L8 16.0003L7.55 18.2503L5.5 19.6003H3.5V15.5503Z" />
+                  <path d="M16 3.5H11L8.5 6L16 13.5L21 8.5L16 3.5Z" />
+                  <path d="M16 10.5L18 8.5L15 5.5H13L12 6.5L16 10.5Z" />
+                </g>
+              </svg>
+
+              <input
+                class="login-field"
+                type="password"
+                id="loginPassword"
+                placeholder="Password"
+                autocomplete="current-password"
+              />
+            </div>
+
+            <div class="login-error" id="loginError"></div>
+
+            <div class="login-button">
+              <input class="login-submit" id="loginSubmit" type="submit" value="Login" />
+            </div>
+
+            <div class="login-texture"></div>
+          </form>
         </div>
-        <form id="loginForm" class="form">
-          <label>
-            Username
-            <input type="text" id="loginUsername" placeholder="owner" autocomplete="username" />
-          </label>
-          <label>
-            Password
-            <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password" />
-          </label>
-          <button type="submit" class="btn primary">Sign in</button>
-          <p class="form-error" id="loginError"></p>
-        </form>
       </section>
 
       <section class="grid" id="console" hidden>
@@ -74,6 +150,12 @@
               <input type="text" id="tenantName" placeholder="New Operator" />
             </label>
             <label>
+              Distributor
+              <select id="tenantDistributor">
+                <option value="">None</option>
+              </select>
+            </label>
+            <label>
               Status
               <select id="tenantStatus">
                 <option value="active">Active</option>
@@ -84,6 +166,58 @@
           </form>
 
           <div class="table" id="tenantsTable"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2>Distributors</h2>
+              <p>Create distributor records for tenant grouping.</p>
+            </div>
+            <button class="btn ghost" id="distributorsRefresh">Refresh</button>
+          </div>
+
+          <form class="form inline" id="distributorCreateForm">
+            <label>
+              Distributor name
+              <input type="text" id="distributorName" placeholder="Distribution Group" />
+            </label>
+            <label>
+              Status
+              <select id="distributorStatus">
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </label>
+            <button type="submit" class="btn primary">Create</button>
+          </form>
+
+          <div class="table" id="distributorsTable"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2>Owner Inbox</h2>
+              <p>Funcoin orders and owner notes by tenant.</p>
+            </div>
+            <button class="btn ghost" id="ordersRefresh">Refresh</button>
+          </div>
+
+          <div class="form inline">
+            <label>
+              Tenant filter
+              <select id="ordersTenantFilter"></select>
+            </label>
+            <label>
+              Owner BTC address (selected tenant)
+              <input type="text" id="ownerAddressInput" placeholder="Wallet address" />
+            </label>
+            <button type="button" class="btn primary" id="ownerAddressSave">Save address</button>
+          </div>
+          <p class="hint" id="ordersHint"></p>
+
+          <div class="table" id="ordersTable"></div>
         </div>
       </section>
     </main>
