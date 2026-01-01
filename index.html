@@ -15,17 +15,18 @@
   <body>
     <div class="bg-veil"></div>
     <main class="page">
-      <header class="hero" id="hero">
-        <div>
-          <p class="eyebrow">PlayTime USA</p>
-          <h1>Owner Console</h1>
-          <p class="subtitle">Manage tenants, credits, and brand controls.</p>
-        </div>
-        <div class="hero-actions">
-          <div class="status" id="statusBadge">Disconnected</div>
-          <button class="btn ghost" id="logoutBtn" hidden>Logout</button>
-        </div>
-      </header>
+      <div id="ownerShell" hidden>
+        <header class="hero">
+          <div>
+            <p class="eyebrow">PlayTime USA</p>
+            <h1>Owner Console</h1>
+            <p class="subtitle">Manage tenants, credits, and brand controls.</p>
+          </div>
+          <div class="hero-actions">
+            <div class="status" id="statusBadge">Disconnected</div>
+            <button class="btn ghost" id="logoutBtn" hidden>Logout</button>
+          </div>
+        </header>
 
       <section class="login-screen" id="loginCard">
         <div class="login-wrapper">
@@ -119,7 +120,7 @@
         </div>
       </section>
 
-      <section class="grid" id="console" hidden>
+        <section class="grid" id="console" hidden>
         <div class="card">
           <div class="card-header">
             <div>
@@ -219,7 +220,8 @@
 
           <div class="table" id="ordersTable"></div>
         </div>
-      </section>
+        </section>
+      </div>
     </main>
 
     <script src="config.js"></script>

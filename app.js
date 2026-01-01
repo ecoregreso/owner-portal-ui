@@ -4,7 +4,7 @@ const TOKEN_KEY = "ptu_owner_token";
 
 const statusBadge = document.getElementById("statusBadge");
 const logoutBtn = document.getElementById("logoutBtn");
-const hero = document.getElementById("hero");
+const ownerShell = document.getElementById("ownerShell");
 const loginCard = document.getElementById("loginCard");
 const loginForm = document.getElementById("loginForm");
 const loginError = document.getElementById("loginError");
@@ -47,7 +47,7 @@ function setStatus(text, ok) {
 function setAuthed(isAuthed) {
   loginCard.hidden = isAuthed;
   consoleSection.hidden = !isAuthed;
-  if (hero) hero.hidden = !isAuthed;
+  if (ownerShell) ownerShell.hidden = !isAuthed;
   document.body.classList.toggle("login-active", !isAuthed);
   if (logoutBtn) logoutBtn.hidden = !isAuthed;
   setStatus(isAuthed ? "Connected" : "Disconnected", isAuthed);

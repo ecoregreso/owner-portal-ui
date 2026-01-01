@@ -46,6 +46,7 @@ body {
 body.login-active .page {
   max-width: none;
   padding: 0;
+  gap: 0;
 }
 
 .login-screen {
