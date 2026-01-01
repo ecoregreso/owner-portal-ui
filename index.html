@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Owner Console - PlayTime USA</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Chakra+Petch:wght@600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="bg-veil"></div>
+    <main class="page">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">PlayTime USA</p>
+          <h1>Owner Console</h1>
+          <p class="subtitle">Manage tenants, credits, and brand controls.</p>
+        </div>
+        <div class="status" id="statusBadge">Disconnected</div>
+      </header>
+
+      <section class="card login" id="loginCard">
+        <div class="card-header">
+          <h2>Owner Sign In</h2>
+          <p>Use your owner credentials to access the console.</p>
+        </div>
+        <form id="loginForm" class="form">
+          <label>
+            Username
+            <input type="text" id="loginUsername" placeholder="owner" autocomplete="username" />
+          </label>
+          <label>
+            Password
+            <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password" />
+          </label>
+          <button type="submit" class="btn primary">Sign in</button>
+          <p class="form-error" id="loginError"></p>
+        </form>
+      </section>
+
+      <section class="grid" id="console" hidden>
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2>Brand Control</h2>
+              <p>Served to admin-ui-v2 via /public/brand.</p>
+            </div>
+            <div class="actions">
+              <button class="btn ghost" id="brandRefresh">Refresh</button>
+              <button class="btn primary" id="brandSave">Save</button>
+            </div>
+          </div>
+          <textarea id="brandEditor" spellcheck="false"></textarea>
+          <p class="hint" id="brandHint"></p>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2>Tenants</h2>
+              <p>Create tenants and issue credits or voucher pool allocations.</p>
+            </div>
+            <button class="btn ghost" id="tenantsRefresh">Refresh</button>
+          </div>
+
+          <form class="form inline" id="tenantCreateForm">
+            <label>
+              Tenant name
+              <input type="text" id="tenantName" placeholder="New Operator" />
+            </label>
+            <label>
+              Status
+              <select id="tenantStatus">
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </label>
+            <button type="submit" class="btn primary">Create</button>
+          </form>
+
+          <div class="table" id="tenantsTable"></div>
+        </div>
+      </section>
+    </main>
+
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
