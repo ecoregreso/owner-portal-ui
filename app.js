@@ -38,6 +38,11 @@ let ordersCache = [];
 let selectedTenantId = "all";
 let loginSubmitting = false;
 
+function clearAuth() {
+  authToken = "";
+  localStorage.removeItem(TOKEN_KEY);
+}
+
 function setStatus(text, ok) {
   statusBadge.textContent = text;
   statusBadge.style.color = ok ? "var(--accent)" : "var(--danger)";
@@ -488,8 +493,7 @@ loginForm.addEventListener("submit", async (event) => {
 
 if (logoutBtn) {
   logoutBtn.addEventListener("click", () => {
-    authToken = "";
-    localStorage.removeItem(TOKEN_KEY);
+    clearAuth();
     setAuthed(false);
   });
 }
@@ -633,9 +637,20 @@ ordersTable.addEventListener("click", async (event) => {
 });
 
 setAuthed(!!authToken);
+async function bootWithToken() {
+  try {
+    await apiFetch("/api/v1/staff/me");
+    setAuthed(true);
+    await loadDistributors();
+    await loadTenants();
+    await loadOwnerAddress(selectedTenantId);
+    await Promise.all([loadBrand(), loadOrders()]);
+  } catch (err) {
+    clearAuth();
+    setAuthed(false);
+  }
+}
+
 if (authToken) {
-  loadDistributors();
-  loadTenants().then(() => loadOwnerAddress(selectedTenantId));
-  loadBrand();
-  loadOrders();
+  bootWithToken();
 }
