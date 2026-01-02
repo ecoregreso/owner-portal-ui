@@ -1,0 +1,10 @@
+{
+  "routes": [
+    { "src": "/assets/*", "dest": "/assets/$1" },
+    { "src": "/styles.css", "dest": "/styles.css" },
+    { "src": "/app.js", "dest": "/app.js" },
+    { "src": "/config.js", "dest": "/config.js" },
+    { "src": "/favicon.png", "dest": "/favicon.png" },
+    { "src": "/*", "dest": "/index.html" }
+  ]
+}
