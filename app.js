@@ -58,6 +58,17 @@ function setAuthed(isAuthed) {
   setStatus(isAuthed ? "Connected" : "Disconnected", isAuthed);
 }
 
+async function requireOwnerSession() {
+  const res = await apiFetch("/api/v1/staff/me");
+  const role = res?.staff?.role || "";
+  if (role !== "owner") {
+    clearAuth();
+    setAuthed(false);
+    throw new Error("Owner access required.");
+  }
+  return res?.staff || null;
+}
+
 async function apiFetch(path, options = {}) {
   const headers = {
     "Content-Type": "application/json",
@@ -476,6 +487,7 @@ loginForm.addEventListener("submit", async (event) => {
     if (!token) throw new Error("Invalid login response");
     authToken = token;
     localStorage.setItem(TOKEN_KEY, token);
+    await requireOwnerSession();
     setAuthed(true);
     await loadDistributors();
     await loadTenants();
@@ -639,7 +651,7 @@ ordersTable.addEventListener("click", async (event) => {
 setAuthed(!!authToken);
 async function bootWithToken() {
   try {
-    await apiFetch("/api/v1/staff/me");
+    await requireOwnerSession();
     setAuthed(true);
     await loadDistributors();
     await loadTenants();
@@ -648,6 +660,7 @@ async function bootWithToken() {
   } catch (err) {
     clearAuth();
     setAuthed(false);
+    loginError.textContent = err.message;
   }
 }
 
