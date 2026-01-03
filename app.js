@@ -237,15 +237,15 @@ function renderTenants(tenants = []) {
       <div class="row-actions">
         <label>
           Issue credits (FUN)
-          <input type="number" min="0" step="0.01" data-action="credits" data-tenant="${escapeHtml(tenant.id)}" />
+          <input type="number" min="0" step="0.01" name="tenantCredits" data-action="credits" data-tenant="${escapeHtml(tenant.id)}" />
         </label>
         <label>
           Add to voucher pool (FUN)
-          <input type="number" min="0" step="0.01" data-action="pool" data-tenant="${escapeHtml(tenant.id)}" />
+          <input type="number" min="0" step="0.01" name="tenantPool" data-action="pool" data-tenant="${escapeHtml(tenant.id)}" />
         </label>
         <label>
           Memo
-          <input type="text" placeholder="Optional" data-action="memo" data-tenant="${escapeHtml(tenant.id)}" />
+          <input type="text" placeholder="Optional" name="tenantMemo" data-action="memo" data-tenant="${escapeHtml(tenant.id)}" />
         </label>
         <button class="btn ghost" data-action="issue" data-tenant="${escapeHtml(tenant.id)}">Apply</button>
       </div>
@@ -390,7 +390,7 @@ function renderOrders(orders = []) {
         </div>
         <label>
           Wallet address for approval
-          <input type="text" data-action="approve-address" value="${escapeHtml(order.ownerBtcAddress || ownerAddressInput.value || "")}" />
+          <input type="text" name="ownerApproveAddress" data-action="approve-address" value="${escapeHtml(order.ownerBtcAddress || ownerAddressInput.value || "")}" />
         </label>
         <div class="order-messages" data-action="messages"></div>
         <label>
