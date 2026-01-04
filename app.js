@@ -30,6 +30,10 @@ const ordersHint = document.getElementById("ordersHint");
 const ordersTenantFilter = document.getElementById("ordersTenantFilter");
 const ownerAddressInput = document.getElementById("ownerAddressInput");
 const ownerAddressSave = document.getElementById("ownerAddressSave");
+const wipeAllConfirm = document.getElementById("wipeAllConfirm");
+const wipeAllPassword = document.getElementById("wipeAllPassword");
+const wipeAllBtn = document.getElementById("wipeAllBtn");
+const wipeAllHint = document.getElementById("wipeAllHint");
 
 let authToken = localStorage.getItem(TOKEN_KEY) || "";
 let tenantsCache = [];
@@ -352,6 +356,48 @@ async function saveOwnerAddress() {
   }
 }
 
+async function wipeAllData() {
+  if (!wipeAllConfirm || !wipeAllPassword || !wipeAllBtn || !wipeAllHint) return;
+  wipeAllHint.textContent = "";
+
+  const confirmText = wipeAllConfirm.value.trim();
+  if (confirmText !== "ERASE ALL") {
+    wipeAllHint.textContent = "Type ERASE ALL to confirm.";
+    return;
+  }
+
+  const password = wipeAllPassword.value.trim();
+  if (!password) {
+    wipeAllHint.textContent = "Password is required.";
+    return;
+  }
+
+  const proceed = window.confirm(
+    "This will permanently delete ALL tenant data and staff accounts. This cannot be undone."
+  );
+  if (!proceed) return;
+
+  try {
+    wipeAllBtn.disabled = true;
+    wipeAllBtn.textContent = "Erasing...";
+    await apiFetch("/api/v1/owner/wipe-all", {
+      method: "POST",
+      body: JSON.stringify({ confirm: confirmText, password }),
+    });
+    wipeAllHint.textContent = "All tenant data erased.";
+    wipeAllConfirm.value = "";
+    wipeAllPassword.value = "";
+    await loadDistributors();
+    await loadTenants();
+    await loadOrders();
+  } catch (err) {
+    wipeAllHint.textContent = err.message;
+  } finally {
+    wipeAllBtn.disabled = false;
+    wipeAllBtn.textContent = "Erase all data";
+  }
+}
+
 function renderOrders(orders = []) {
   ordersTable.innerHTML = "";
   if (!orders.length) {
@@ -582,6 +628,9 @@ distributorCreateForm.addEventListener("submit", async (event) => {
 
 ordersRefresh.addEventListener("click", loadOrders);
 ownerAddressSave.addEventListener("click", saveOwnerAddress);
+if (wipeAllBtn) {
+  wipeAllBtn.addEventListener("click", wipeAllData);
+}
 
 ordersTenantFilter.addEventListener("change", async () => {
   selectedTenantId = ordersTenantFilter.value || "all";

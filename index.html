@@ -220,6 +220,28 @@
 
           <div class="table" id="ordersTable"></div>
         </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2>System Reset</h2>
+              <p>Erase all tenant data across the platform. Owner accounts are preserved.</p>
+            </div>
+          </div>
+
+          <div class="form inline">
+            <label>
+              Confirmation phrase
+              <input type="text" id="wipeAllConfirm" placeholder="Type ERASE ALL" />
+            </label>
+            <label>
+              Owner password
+              <input type="password" id="wipeAllPassword" placeholder="Password" autocomplete="current-password" />
+            </label>
+            <button type="button" class="btn danger" id="wipeAllBtn">Erase all data</button>
+          </div>
+          <p class="form-error" id="wipeAllHint"></p>
+        </div>
         </section>
       </div>
     </main>

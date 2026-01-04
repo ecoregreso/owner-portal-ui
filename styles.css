@@ -458,6 +458,12 @@ textarea {
   border-color: rgba(39, 217, 255, 0.35);
 }
 
+.btn.danger {
+  background: linear-gradient(135deg, rgba(255, 71, 97, 0.3), rgba(255, 71, 97, 0.08));
+  color: var(--danger);
+  border-color: rgba(255, 71, 97, 0.45);
+}
+
 .btn.ghost {
   background: transparent;
   color: var(--text);
