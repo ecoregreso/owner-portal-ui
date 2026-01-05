@@ -1,718 +1,702 @@
-const config = window.OWNER_PORTAL_CONFIG || {};
-const API_BASE = config.apiBase || "https://playtimeusa-backend-v2.onrender.com";
-const TOKEN_KEY = "ptu_owner_token";
+// owner-portal/app.js
 
-const statusBadge = document.getElementById("statusBadge");
-const logoutBtn = document.getElementById("logoutBtn");
-const ownerShell = document.getElementById("ownerShell");
-const loginCard = document.getElementById("loginCard");
-const loginForm = document.getElementById("loginForm");
-const loginError = document.getElementById("loginError");
-const loginSubmit = document.getElementById("loginSubmit");
-const consoleSection = document.getElementById("console");
-const brandEditor = document.getElementById("brandEditor");
-const brandHint = document.getElementById("brandHint");
-const brandRefresh = document.getElementById("brandRefresh");
-const brandSave = document.getElementById("brandSave");
+const cfg = window.OWNER_CONFIG || {};
+const API = String(cfg.apiBase || "").replace(/\/+$/, "");
+const ADMIN_UI_BASE = String(cfg.adminUiBase || "").replace(/\/+$/, "");
+const ORDERS_POLL_MS = Number(cfg.ordersPollMs || 0) || 0;
 
-const tenantsRefresh = document.getElementById("tenantsRefresh");
-const tenantsTable = document.getElementById("tenantsTable");
-const tenantCreateForm = document.getElementById("tenantCreateForm");
-const tenantDistributor = document.getElementById("tenantDistributor");
+const els = {
+  loginCard: document.getElementById("loginCard"),
+  loginForm: document.getElementById("loginForm"),
+  loginUsername: document.getElementById("loginUsername"),
+  loginPassword: document.getElementById("loginPassword"),
+  loginError: document.getElementById("loginError"),
+  ownerShell: document.getElementById("ownerShell"),
+  console: document.getElementById("console"),
+  statusBadge: document.getElementById("statusBadge"),
+  logoutBtn: document.getElementById("logoutBtn"),
 
-const distributorsRefresh = document.getElementById("distributorsRefresh");
-const distributorsTable = document.getElementById("distributorsTable");
-const distributorCreateForm = document.getElementById("distributorCreateForm");
+  // Brand
+  brandEditor: document.getElementById("brandEditor"),
+  brandHint: document.getElementById("brandHint"),
+  brandRefresh: document.getElementById("brandRefresh"),
+  brandSave: document.getElementById("brandSave"),
 
-const ordersRefresh = document.getElementById("ordersRefresh");
-const ordersTable = document.getElementById("ordersTable");
-const ordersHint = document.getElementById("ordersHint");
-const ordersTenantFilter = document.getElementById("ordersTenantFilter");
-const ownerAddressInput = document.getElementById("ownerAddressInput");
-const ownerAddressSave = document.getElementById("ownerAddressSave");
-const wipeAllConfirm = document.getElementById("wipeAllConfirm");
-const wipeAllPassword = document.getElementById("wipeAllPassword");
-const wipeAllBtn = document.getElementById("wipeAllBtn");
-const wipeAllHint = document.getElementById("wipeAllHint");
+  // System config
+  systemToggles: document.getElementById("systemToggles"),
+  systemHint: document.getElementById("systemHint"),
+  systemRefresh: document.getElementById("systemRefresh"),
+  systemSave: document.getElementById("systemSave"),
 
-let authToken = localStorage.getItem(TOKEN_KEY) || "";
-let tenantsCache = [];
-let distributorsCache = [];
-let ordersCache = [];
-let selectedTenantId = "all";
-let loginSubmitting = false;
+  // Tenants
+  tenantsTable: document.getElementById("tenantsTable"),
+  tenantsRefresh: document.getElementById("tenantsRefresh"),
+  tenantCreateForm: document.getElementById("tenantCreateForm"),
+  tenantCreateHint: document.getElementById("tenantCreateHint"),
+  tenantName: document.getElementById("tenantName"),
+  tenantStatus: document.getElementById("tenantStatus"),
+  tenantSeedCredits: document.getElementById("tenantSeedCredits"),
+  tenantSeedPool: document.getElementById("tenantSeedPool"),
+  tenantAdminUsername: document.getElementById("tenantAdminUsername"),
+  tenantAdminEmail: document.getElementById("tenantAdminEmail"),
+  tenantAdminPassword: document.getElementById("tenantAdminPassword"),
 
-function clearAuth() {
-  authToken = "";
-  localStorage.removeItem(TOKEN_KEY);
+  // Orders
+  ordersTable: document.getElementById("ordersTable"),
+  ordersRefresh: document.getElementById("ordersRefresh"),
+  ordersAutoToggle: document.getElementById("ordersAutoToggle"),
+  ordersHint: document.getElementById("ordersHint"),
+  ordersTenantFilter: document.getElementById("ordersTenantFilter"),
+  ownerAddressInput: document.getElementById("ownerAddressInput"),
+  ownerAddressSave: document.getElementById("ownerAddressSave"),
+};
+
+const STORAGE_KEY = "ptu_owner_auth";
+
+let state = {
+  token: null,
+  staff: null,
+  tenants: [],
+  systemConfig: null,
+  ordersAuto: false,
+  ordersTimer: null,
+};
+
+function setStatus(text, kind = "ok") {
+  els.statusBadge.textContent = text;
+  els.statusBadge.classList.remove("warn", "bad");
+  if (kind === "warn") els.statusBadge.classList.add("warn");
+  if (kind === "bad") els.statusBadge.classList.add("bad");
 }
 
-function setStatus(text, ok) {
-  statusBadge.textContent = text;
-  statusBadge.style.color = ok ? "var(--accent)" : "var(--danger)";
-  statusBadge.style.borderColor = ok ? "var(--accent-soft)" : "rgba(255, 71, 97, 0.4)";
+function setHint(el, msg, kind = "") {
+  if (!el) return;
+  el.textContent = msg || "";
+  el.style.color = kind === "bad" ? "var(--danger)" : "";
 }
 
-function setAuthed(isAuthed) {
-  loginCard.hidden = isAuthed;
-  consoleSection.hidden = !isAuthed;
-  if (ownerShell) ownerShell.hidden = !isAuthed;
-  document.body.classList.toggle("login-active", !isAuthed);
-  if (logoutBtn) logoutBtn.hidden = !isAuthed;
-  setStatus(isAuthed ? "Connected" : "Disconnected", isAuthed);
-}
-
-async function requireOwnerSession() {
-  const res = await apiFetch("/api/v1/staff/me");
-  const role = res?.staff?.role || "";
-  if (role !== "owner") {
-    clearAuth();
-    setAuthed(false);
-    throw new Error("Owner access required.");
+async function apiFetch(path, { method = "GET", body = null, query = null } = {}) {
+  if (!API) throw new Error("OWNER_CONFIG.apiBase is missing");
+  let url = `${API}${path}`;
+  if (query && typeof query === "object") {
+    const params = new URLSearchParams();
+    for (const [k, v] of Object.entries(query)) {
+      if (v === null || v === undefined || v === "") continue;
+      params.set(k, String(v));
+    }
+    const qs = params.toString();
+    if (qs) url += `?${qs}`;
   }
-  return res?.staff || null;
-}
 
-async function apiFetch(path, options = {}) {
-  const headers = {
-    "Content-Type": "application/json",
-    ...(options.headers || {}),
-  };
-  if (authToken) {
-    headers.Authorization = `Bearer ${authToken}`;
-  }
+  const headers = { "Content-Type": "application/json" };
+  if (state.token) headers.Authorization = `Bearer ${state.token}`;
 
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...options,
+  const res = await fetch(url, {
+    method,
     headers,
+    body: body ? JSON.stringify(body) : null,
   });
 
-  const text = await response.text();
-  let data = null;
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    data = null;
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data?.ok === false) {
+    const msg = data?.error || `Request failed (${res.status})`;
+    const err = new Error(msg);
+    err.status = res.status;
+    err.data = data;
+    throw err;
   }
-
-  if (!response.ok) {
-    const message = data?.error || data?.message || `Request failed (${response.status})`;
-    throw new Error(message);
-  }
-
   return data;
 }
 
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+function saveAuth() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ token: state.token, staff: state.staff }));
 }
 
-function formatAmount(value, digits = 2) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) return "0";
-  return num.toFixed(digits);
+function loadAuth() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
 }
 
-function formatCents(value) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) return "0.00";
-  return formatAmount(num / 100);
+function clearAuth() {
+  localStorage.removeItem(STORAGE_KEY);
 }
 
-function formatDate(value) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleString();
+function showLogin() {
+  document.body.classList.add("login-active");
+  els.loginCard.hidden = false;
+  els.ownerShell.hidden = true;
+  els.console.hidden = true;
+  els.logoutBtn.hidden = true;
+  setStatus("Disconnected", "bad");
 }
 
-function tenantNameById(id) {
-  const tenant = tenantsCache.find((t) => t.id === id);
-  return tenant ? tenant.name : "Unknown";
+function showConsole() {
+  document.body.classList.remove("login-active");
+  els.loginCard.hidden = true;
+  els.ownerShell.hidden = false;
+  els.console.hidden = false;
+  els.logoutBtn.hidden = false;
+  setStatus(`Connected as ${state.staff?.username || "owner"}`);
 }
 
-function distributorNameById(id) {
-  if (!id) return "Unassigned";
-  const distributor = distributorsCache.find((d) => d.id === id);
-  return distributor ? distributor.name : "Unassigned";
+function htmlEscape(s) {
+  return String(s || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
-function renderTenantOptions() {
-  if (!ordersTenantFilter) return;
-  ordersTenantFilter.innerHTML = "";
-  const allOption = document.createElement("option");
-  allOption.value = "all";
-  allOption.textContent = "All tenants";
-  ordersTenantFilter.appendChild(allOption);
-
-  tenantsCache.forEach((tenant) => {
-    const option = document.createElement("option");
-    option.value = tenant.id;
-    option.textContent = tenant.name;
-    ordersTenantFilter.appendChild(option);
-  });
-
-  ordersTenantFilter.value = selectedTenantId;
+async function copyText(text) {
+  const t = String(text || "");
+  if (!t) return false;
+  try {
+    await navigator.clipboard.writeText(t);
+    return true;
+  } catch {
+    // fallback
+    const ta = document.createElement("textarea");
+    ta.value = t;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    ta.remove();
+    return true;
+  }
 }
 
-function renderDistributorOptions() {
-  if (!tenantDistributor) return;
-  tenantDistributor.innerHTML = "";
+// --------------------
+// Login / logout
+// --------------------
 
-  const emptyOption = document.createElement("option");
-  emptyOption.value = "";
-  emptyOption.textContent = "None";
-  tenantDistributor.appendChild(emptyOption);
+els.loginForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  setHint(els.loginError, "");
+  const username = String(els.loginUsername.value || "").trim();
+  const password = String(els.loginPassword.value || "").trim();
+  if (!username || !password) {
+    return setHint(els.loginError, "Username and password required", "bad");
+  }
 
-  distributorsCache.forEach((distributor) => {
-    const option = document.createElement("option");
-    option.value = distributor.id;
-    option.textContent = distributor.name;
-    tenantDistributor.appendChild(option);
-  });
-}
+  try {
+    const data = await apiFetch("/staff/login", {
+      method: "POST",
+      body: { username, password },
+    });
+    state.token = data.token;
+    state.staff = data.staff;
+    saveAuth();
+    showConsole();
+    await refreshAll();
+  } catch (err) {
+    setHint(els.loginError, err.message || "Login failed", "bad");
+  }
+});
+
+els.logoutBtn.addEventListener("click", () => {
+  state.token = null;
+  state.staff = null;
+  state.tenants = [];
+  state.systemConfig = null;
+  stopOrdersAuto();
+  clearAuth();
+  showLogin();
+});
+
+// --------------------
+// Brand
+// --------------------
 
 async function loadBrand() {
-  brandHint.textContent = "";
-  try {
-    const res = await apiFetch("/api/v1/owner/brand");
-    const payload = res?.brand || {};
-    brandEditor.value = JSON.stringify(payload, null, 2);
-  } catch (err) {
-    brandHint.textContent = err.message;
-  }
+  setHint(els.brandHint, "Loading...");
+  const data = await apiFetch("/owner/brand");
+  els.brandEditor.value = JSON.stringify(data.brand || {}, null, 2);
+  setHint(els.brandHint, "Loaded.");
 }
 
 async function saveBrand() {
-  brandHint.textContent = "";
-  let parsed;
   try {
-    parsed = JSON.parse(brandEditor.value || "{}");
-  } catch {
-    brandHint.textContent = "Brand JSON is invalid.";
-    return;
-  }
-
-  try {
-    await apiFetch("/api/v1/owner/brand", {
-      method: "POST",
-      body: JSON.stringify({ brand: parsed }),
-    });
-    brandHint.textContent = "Brand saved.";
+    const brand = JSON.parse(els.brandEditor.value || "{}");
+    await apiFetch("/owner/brand", { method: "POST", body: { brand } });
+    setHint(els.brandHint, "Saved.");
   } catch (err) {
-    brandHint.textContent = err.message;
+    setHint(els.brandHint, err.message || "Save failed", "bad");
   }
 }
 
-function renderTenants(tenants = []) {
-  tenantsTable.innerHTML = "";
-  if (!tenants.length) {
-    tenantsTable.innerHTML = "<div class=\"hint\">No tenants yet.</div>";
-    return;
-  }
+els.brandRefresh.addEventListener("click", () => loadBrand().catch((e) => setHint(els.brandHint, e.message, "bad")));
+els.brandSave.addEventListener("click", () => saveBrand());
 
-  tenants.forEach((tenant) => {
-    const wallet = tenant.TenantWallets?.[0] || {};
-    const pool = tenant.TenantVoucherPools?.[0] || {};
-    const distributorLabel = tenant.Distributor?.name || distributorNameById(tenant.distributorId);
-    const statusLabel = tenant.status || "active";
-    const row = document.createElement("div");
-    row.className = "table-row";
-    row.innerHTML = `
-      <div class="tenant-meta">
-        <div class="tenant-name">
-          <strong>${escapeHtml(tenant.name)}</strong>
-          <span class="status-pill">${escapeHtml(statusLabel)}</span>
-        </div>
-        <div class="tenant-labels">
-          <span class="hint">Distributor: ${escapeHtml(distributorLabel)}</span>
-        </div>
-        <div class="tenant-balance">
-          Wallet: ${escapeHtml(formatCents(wallet.balanceCents))} FUN • Voucher pool:
-          ${escapeHtml(formatCents(pool.poolBalanceCents))} FUN
-        </div>
-        <div class="hint">${escapeHtml(tenant.id)}</div>
+// --------------------
+// System Config
+// --------------------
+
+const TOGGLE_SCHEMA = [
+  { key: "maintenanceMode", title: "Maintenance mode", desc: "Blocks tenant actions; owner access still works." },
+  { key: "purchaseOrdersEnabled", title: "Purchase orders", desc: "Allow tenants to place funcoin orders." },
+  { key: "vouchersEnabled", title: "Vouchers", desc: "Enable voucher creation / redemption features." },
+  { key: "depositsEnabled", title: "Deposits", desc: "Enable deposits (wallet adds)." },
+  { key: "withdrawalsEnabled", title: "Withdrawals", desc: "Enable withdrawals / cash-outs." },
+  { key: "messagingEnabled", title: "Messaging", desc: "Enable staff messaging and inbox." },
+  { key: "pushEnabled", title: "Push notifications", desc: "Allow push notifications to devices." },
+];
+
+function renderToggles(container, config, prefix) {
+  container.innerHTML = "";
+  for (const item of TOGGLE_SCHEMA) {
+    const id = `${prefix}-${item.key}`;
+    const wrap = document.createElement("div");
+    wrap.className = "toggle";
+    wrap.innerHTML = `
+      <div class="meta">
+        <div class="title">${htmlEscape(item.title)}</div>
+        <div class="desc">${htmlEscape(item.desc)}</div>
       </div>
-      <div class="row-actions">
-        <label>
-          Issue credits (FUN)
-          <input type="number" min="0" step="0.01" name="tenantCredits" data-action="credits" data-tenant="${escapeHtml(tenant.id)}" />
-        </label>
-        <label>
-          Add to voucher pool (FUN)
-          <input type="number" min="0" step="0.01" name="tenantPool" data-action="pool" data-tenant="${escapeHtml(tenant.id)}" />
-        </label>
-        <label>
-          Memo
-          <input type="text" placeholder="Optional" name="tenantMemo" data-action="memo" data-tenant="${escapeHtml(tenant.id)}" />
-        </label>
-        <button class="btn ghost" data-action="issue" data-tenant="${escapeHtml(tenant.id)}">Apply</button>
-      </div>
+      <input type="checkbox" id="${id}" ${config?.[item.key] ? "checked" : ""} />
     `;
-    tenantsTable.appendChild(row);
-  });
+    container.appendChild(wrap);
+  }
+}
+
+function readToggles(prefix) {
+  const out = {};
+  for (const item of TOGGLE_SCHEMA) {
+    const id = `${prefix}-${item.key}`;
+    const el = document.getElementById(id);
+    if (!el) continue;
+    out[item.key] = !!el.checked;
+  }
+  return out;
+}
+
+async function loadSystemConfig() {
+  setHint(els.systemHint, "Loading...");
+  const data = await apiFetch("/owner/config/system");
+  state.systemConfig = data.config || {};
+  renderToggles(els.systemToggles, state.systemConfig, "sys");
+  setHint(els.systemHint, "Loaded.");
+}
+
+async function saveSystemConfig() {
+  try {
+    const config = readToggles("sys");
+    const data = await apiFetch("/owner/config/system", { method: "POST", body: { config } });
+    state.systemConfig = data.config || config;
+    setHint(els.systemHint, "Saved.");
+  } catch (err) {
+    setHint(els.systemHint, err.message || "Save failed", "bad");
+  }
+}
+
+els.systemRefresh.addEventListener("click", () => loadSystemConfig().catch((e) => setHint(els.systemHint, e.message, "bad")));
+els.systemSave.addEventListener("click", () => saveSystemConfig());
+
+// --------------------
+// Tenants
+// --------------------
+
+function pickBalance(arr, field) {
+  if (!Array.isArray(arr) || !arr.length) return 0;
+  return Number(arr[0]?.[field] || 0) || 0;
+}
+
+function tenantAdminLoginUrl(tenantId) {
+  if (!tenantId) return "";
+  const base = ADMIN_UI_BASE || "";
+  if (base) return `${base}/login?tenantId=${tenantId}`;
+  return `/login?tenantId=${tenantId}`;
 }
 
 async function loadTenants() {
-  try {
-    const res = await apiFetch("/api/v1/owner/tenants");
-    tenantsCache = res?.tenants || [];
-    renderTenants(tenantsCache);
-    renderTenantOptions();
-  } catch (err) {
-    tenantsTable.innerHTML = `<div class=\"hint\">${escapeHtml(err.message)}</div>`;
+  const data = await apiFetch("/owner/tenants");
+  state.tenants = data.tenants || [];
+
+  // tenant filter for orders
+  els.ordersTenantFilter.innerHTML = "";
+  const optAll = document.createElement("option");
+  optAll.value = "";
+  optAll.textContent = "All tenants";
+  els.ordersTenantFilter.appendChild(optAll);
+  for (const t of state.tenants) {
+    const opt = document.createElement("option");
+    opt.value = t.id;
+    opt.textContent = `${t.name} (${t.id.slice(0, 8)})`;
+    els.ordersTenantFilter.appendChild(opt);
   }
+
+  renderTenantsTable();
 }
 
-function renderDistributors(distributors = []) {
-  distributorsTable.innerHTML = "";
-  if (!distributors.length) {
-    distributorsTable.innerHTML = "<div class=\"hint\">No distributors yet.</div>";
-    return;
-  }
+function renderTenantsTable() {
+  const rows = [];
 
-  distributors.forEach((distributor) => {
+  for (const t of state.tenants) {
+    const wallet = pickBalance(t.TenantWallets, "balanceCents");
+    const pool = pickBalance(t.TenantVoucherPools, "poolBalanceCents");
+    const root = t.rootAdmin || null;
+
+    const loginUrl = tenantAdminLoginUrl(t.id);
+
     const row = document.createElement("div");
     row.className = "table-row";
+
     row.innerHTML = `
-      <div>
-        <strong>${escapeHtml(distributor.name)}</strong>
-        <div class="hint">${escapeHtml(distributor.id)}</div>
+      <div class="table-row-header">
+        <div>
+          <div><strong>${htmlEscape(t.name)}</strong> <span class="status-pill">${htmlEscape(t.status || "")}</span></div>
+          <div class="small mono">Tenant ID: ${htmlEscape(t.id)}</div>
+        </div>
+        <div class="inline-actions">
+          <button class="btn ghost" data-action="copy-login" data-tenant="${htmlEscape(t.id)}">Copy admin login URL</button>
+          <button class="btn primary" data-action="reset-admin" data-tenant="${htmlEscape(t.id)}">Reset admin password</button>
+        </div>
       </div>
+
+      <div class="order-meta">
+        <div><span class="mono">Wallet:</span> ${wallet} FUN cents</div>
+        <div><span class="mono">Voucher Pool:</span> ${pool} FUN cents</div>
+        <div><span class="mono">Root admin:</span> ${root?.username ? htmlEscape(root.username) : "(not set)"} ${root?.email ? `&lt;${htmlEscape(root.email)}&gt;` : ""}</div>
+        <div><span class="mono">Admin UI:</span> <a href="${htmlEscape(loginUrl)}" target="_blank" rel="noopener">${htmlEscape(loginUrl)}</a></div>
+      </div>
+
+      <details>
+        <summary class="small">Credits / Voucher Pool</summary>
+        <div class="form inline" style="margin-top:10px;">
+          <label>
+            Issue credits (cents)
+            <input type="number" min="0" step="1" data-field="issue" data-tenant="${htmlEscape(t.id)}" placeholder="0" />
+          </label>
+          <label>
+            Allocate voucher pool (cents)
+            <input type="number" min="0" step="1" data-field="alloc" data-tenant="${htmlEscape(t.id)}" placeholder="0" />
+          </label>
+          <button class="btn primary" data-action="issue" data-tenant="${htmlEscape(t.id)}">Issue credits</button>
+          <button class="btn ghost" data-action="alloc" data-tenant="${htmlEscape(t.id)}">Allocate pool</button>
+          <span class="hint" data-hint="${htmlEscape(t.id)}"></span>
+        </div>
+      </details>
+
+      <details>
+        <summary class="small">Tenant Configuration</summary>
+        <div class="toggles" id="tenant-toggles-${htmlEscape(t.id)}" style="margin-top:10px;"></div>
+        <div class="inline-actions" style="margin-top:10px;">
+          <button class="btn ghost" data-action="tenant-config-refresh" data-tenant="${htmlEscape(t.id)}">Refresh</button>
+          <button class="btn primary" data-action="tenant-config-save" data-tenant="${htmlEscape(t.id)}">Save</button>
+          <span class="hint" data-config-hint="${htmlEscape(t.id)}"></span>
+        </div>
+      </details>
     `;
-    distributorsTable.appendChild(row);
-  });
+
+    rows.push(row);
+  }
+
+  els.tenantsTable.innerHTML = "";
+  for (const r of rows) els.tenantsTable.appendChild(r);
 }
 
-async function loadDistributors() {
+async function refreshTenantConfig(tenantId) {
+  const target = document.getElementById(`tenant-toggles-${tenantId}`);
+  const hint = document.querySelector(`[data-config-hint="${tenantId}"]`);
+  if (!target) return;
+  setHint(hint, "Loading...");
   try {
-    const res = await apiFetch("/api/v1/owner/distributors");
-    distributorsCache = res?.distributors || [];
-    renderDistributors(distributorsCache);
-    renderDistributorOptions();
-    if (tenantsCache.length) {
-      renderTenants(tenantsCache);
-    }
+    const data = await apiFetch(`/owner/tenants/${tenantId}/config`);
+    renderToggles(target, data.tenant || {}, `ten-${tenantId}`);
+    setHint(hint, "Loaded.");
   } catch (err) {
-    distributorsTable.innerHTML = `<div class=\"hint\">${escapeHtml(err.message)}</div>`;
+    setHint(hint, err.message || "Failed", "bad");
   }
 }
 
-function toCents(value) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) return null;
-  return Math.round(num * 100);
+async function saveTenantConfig(tenantId) {
+  const hint = document.querySelector(`[data-config-hint="${tenantId}"]`);
+  setHint(hint, "Saving...");
+  try {
+    const config = readToggles(`ten-${tenantId}`);
+    await apiFetch(`/owner/tenants/${tenantId}/config`, { method: "POST", body: { config } });
+    setHint(hint, "Saved.");
+  } catch (err) {
+    setHint(hint, err.message || "Failed", "bad");
+  }
 }
 
-async function issueTenantFunds(tenantId, credits, pool, memo) {
-  if (credits > 0) {
-    await apiFetch(`/api/v1/owner/tenants/${tenantId}/credits`, {
+els.tenantsRefresh.addEventListener("click", () => loadTenants().catch((e) => console.error(e)));
+
+els.tenantCreateForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  setHint(els.tenantCreateHint, "Creating...");
+
+  const name = String(els.tenantName.value || "").trim();
+  const status = String(els.tenantStatus.value || "active").trim();
+  const seedCreditsCents = Number(els.tenantSeedCredits.value || 0) || 0;
+  const seedVoucherPoolCents = Number(els.tenantSeedPool.value || 0) || 0;
+
+  const admin = {
+    username: String(els.tenantAdminUsername.value || "").trim() || undefined,
+    email: String(els.tenantAdminEmail.value || "").trim() || undefined,
+    password: String(els.tenantAdminPassword.value || "").trim() || undefined,
+  };
+
+  if (!name) {
+    return setHint(els.tenantCreateHint, "Tenant name required", "bad");
+  }
+
+  try {
+    const data = await apiFetch("/owner/tenants", {
       method: "POST",
-      body: JSON.stringify({ amountCents: credits, memo }),
+      body: {
+        name,
+        status,
+        seedCreditsCents,
+        seedVoucherPoolCents,
+        admin,
+      },
     });
+
+    const bootstrap = data.bootstrap || {};
+    const msg = `Created. Admin: ${bootstrap.username} / ${bootstrap.password} | ${bootstrap.adminUiUrl || tenantAdminLoginUrl(data.tenant?.id)}`;
+    setHint(els.tenantCreateHint, msg);
+
+    // clear only sensitive fields
+    els.tenantAdminPassword.value = "";
+
+    await loadTenants();
+    await refreshOrders();
+  } catch (err) {
+    setHint(els.tenantCreateHint, err.message || "Create failed", "bad");
+  }
+});
+
+els.tenantsTable.addEventListener("click", async (e) => {
+  const btn = e.target?.closest("button");
+  if (!btn) return;
+  const action = btn.getAttribute("data-action");
+  const tenantId = btn.getAttribute("data-tenant");
+  if (!action || !tenantId) return;
+
+  if (action === "copy-login") {
+    const url = tenantAdminLoginUrl(tenantId);
+    await copyText(url);
+    btn.textContent = "Copied";
+    setTimeout(() => (btn.textContent = "Copy admin login URL"), 900);
+    return;
   }
 
-  if (pool > 0) {
-    await apiFetch(`/api/v1/owner/tenants/${tenantId}/voucher-pool`, {
-      method: "POST",
-      body: JSON.stringify({ amountCents: pool, memo }),
-    });
+  if (action === "reset-admin") {
+    btn.disabled = true;
+    try {
+      const data = await apiFetch(`/owner/tenants/${tenantId}/bootstrap/reset-password`, { method: "POST" });
+      await copyText(`${data.username}:${data.password}`);
+      alert(`New password generated (copied as username:password)\n\nUsername: ${data.username}\nPassword: ${data.password}\n\nAdmin UI: ${data.adminUiUrl}`);
+      await loadTenants();
+    } catch (err) {
+      alert(err.message || "Reset failed");
+    } finally {
+      btn.disabled = false;
+    }
+    return;
   }
-}
 
-async function loadOwnerAddress(tenantId) {
-  if (!tenantId || tenantId === "all") {
-    ownerAddressInput.value = "";
+  if (action === "issue" || action === "alloc") {
+    const hint = document.querySelector(`[data-hint="${tenantId}"]`);
+    setHint(hint, "Working...");
+    try {
+      if (action === "issue") {
+        const field = document.querySelector(`input[data-field="issue"][data-tenant="${tenantId}"]`);
+        const amountCents = Number(field?.value || 0) || 0;
+        await apiFetch(`/owner/tenants/${tenantId}/credits`, { method: "POST", body: { amountCents, memo: "owner console" } });
+        setHint(hint, "Credits issued.");
+      } else {
+        const field = document.querySelector(`input[data-field="alloc"][data-tenant="${tenantId}"]`);
+        const amountCents = Number(field?.value || 0) || 0;
+        await apiFetch(`/owner/tenants/${tenantId}/voucher-pool`, { method: "POST", body: { amountCents, memo: "owner console" } });
+        setHint(hint, "Pool allocated.");
+      }
+      await loadTenants();
+    } catch (err) {
+      setHint(hint, err.message || "Failed", "bad");
+    }
+    return;
+  }
+
+  if (action === "tenant-config-refresh") {
+    return refreshTenantConfig(tenantId);
+  }
+  if (action === "tenant-config-save") {
+    return saveTenantConfig(tenantId);
+  }
+});
+
+// --------------------
+// Orders
+// --------------------
+
+async function loadOwnerAddress() {
+  const tenantId = String(els.ordersTenantFilter.value || "");
+  if (!tenantId) {
+    els.ownerAddressInput.value = "";
     return;
   }
   try {
-    const res = await apiFetch(`/api/v1/purchase-orders/owner-address?tenantId=${encodeURIComponent(tenantId)}`);
-    ownerAddressInput.value = res?.ownerBtcAddress || "";
+    const data = await apiFetch("/purchase-orders/owner-address", { query: { tenantId } });
+    els.ownerAddressInput.value = data.ownerBtcAddress || "";
   } catch (err) {
-    ordersHint.textContent = err.message;
+    console.error(err);
   }
 }
 
 async function saveOwnerAddress() {
-  const tenantId = selectedTenantId;
-  if (!tenantId || tenantId === "all") {
-    ordersHint.textContent = "Select a tenant before saving the owner address.";
-    return;
-  }
-  const ownerBtcAddress = ownerAddressInput.value.trim();
-  try {
-    await apiFetch("/api/v1/purchase-orders/owner-address", {
-      method: "POST",
-      body: JSON.stringify({ ownerBtcAddress, tenantId }),
-    });
-    ordersHint.textContent = "Owner address saved.";
-  } catch (err) {
-    ordersHint.textContent = err.message;
-  }
+  const tenantId = String(els.ordersTenantFilter.value || "");
+  if (!tenantId) return alert("Select a tenant first.");
+  const ownerBtcAddress = String(els.ownerAddressInput.value || "").trim();
+  await apiFetch("/purchase-orders/owner-address", {
+    method: "POST",
+    body: { tenantId, ownerBtcAddress },
+  });
+  setHint(els.ordersHint, "Owner BTC address saved.");
 }
 
-async function wipeAllData() {
-  if (!wipeAllConfirm || !wipeAllPassword || !wipeAllBtn || !wipeAllHint) return;
-  wipeAllHint.textContent = "";
+els.ordersTenantFilter.addEventListener("change", async () => {
+  await loadOwnerAddress();
+  await refreshOrders();
+});
 
-  const confirmText = wipeAllConfirm.value.trim();
-  if (confirmText !== "ERASE ALL") {
-    wipeAllHint.textContent = "Type ERASE ALL to confirm.";
-    return;
-  }
+els.ownerAddressSave.addEventListener("click", () => saveOwnerAddress().catch((e) => alert(e.message || "Save failed")));
+els.ordersRefresh.addEventListener("click", () => refreshOrders().catch((e) => console.error(e)));
 
-  const password = wipeAllPassword.value.trim();
-  if (!password) {
-    wipeAllHint.textContent = "Password is required.";
-    return;
-  }
-
-  const proceed = window.confirm(
-    "This will permanently delete ALL tenant data and staff accounts. This cannot be undone."
-  );
-  if (!proceed) return;
-
-  try {
-    wipeAllBtn.disabled = true;
-    wipeAllBtn.textContent = "Erasing...";
-    await apiFetch("/api/v1/owner/wipe-all", {
-      method: "POST",
-      body: JSON.stringify({ confirm: confirmText, password }),
-    });
-    wipeAllHint.textContent = "All tenant data erased.";
-    wipeAllConfirm.value = "";
-    wipeAllPassword.value = "";
-    await loadDistributors();
-    await loadTenants();
-    await loadOrders();
-  } catch (err) {
-    wipeAllHint.textContent = err.message;
-  } finally {
-    wipeAllBtn.disabled = false;
-    wipeAllBtn.textContent = "Erase all data";
-  }
-}
-
-function renderOrders(orders = []) {
-  ordersTable.innerHTML = "";
+function renderOrders(orders) {
+  els.ordersTable.innerHTML = "";
   if (!orders.length) {
-    ordersTable.innerHTML = "<div class=\"hint\">No purchase orders yet.</div>";
+    els.ordersTable.innerHTML = `<div class="hint">No orders.</div>`;
     return;
   }
 
-  orders.forEach((order) => {
+  for (const o of orders) {
     const row = document.createElement("div");
     row.className = "table-row";
-    row.dataset.orderId = order.id;
-
-    const tenantLabel = tenantNameById(order.tenantId);
-    const status = order.status || "pending";
-
     row.innerHTML = `
       <div class="table-row-header">
-        <div class="order-meta">
-          <strong>Order #${escapeHtml(order.id)}</strong>
-          <div class="hint">Tenant: ${escapeHtml(tenantLabel)} • Requested by ${escapeHtml(order.requestedBy)}</div>
-          <div class="hint">${escapeHtml(formatDate(order.createdAt))}</div>
+        <div>
+          <div><strong>#${o.id}</strong> <span class="status-pill">${htmlEscape(o.status || "")}</span></div>
+          <div class="small">Tenant: <span class="mono">${htmlEscape(o.tenantId || "")}</span></div>
         </div>
-        <span class="status-pill">${escapeHtml(status)}</span>
-      </div>
-      <div class="order-actions">
-        <button class="btn ghost" data-action="toggle">Details</button>
-        <button class="btn primary" data-action="approve">Approve</button>
-        <button class="btn ghost" data-action="mark-credited">Mark credited</button>
-      </div>
-      <div class="order-details" hidden>
-        <div class="order-meta">
-          <div>FUN: ${escapeHtml(formatAmount(order.funAmount))} • BTC: ${escapeHtml(formatAmount(order.btcAmount, 8))}</div>
-          <div>BTC rate: ${escapeHtml(order.btcRate || "-")}</div>
-          <div>Confirmation: ${escapeHtml(order.confirmationCode || "-")}</div>
-          <div>Owner wallet: ${escapeHtml(order.ownerBtcAddress || "-")}</div>
+        <div class="inline-actions">
+          <button class="btn ghost" data-action="po-approve" data-id="${o.id}">Approve</button>
+          <button class="btn ghost" data-action="po-mark-credited" data-id="${o.id}">Mark credited</button>
+          <button class="btn ghost" data-action="po-ack" data-id="${o.id}">Acknowledge</button>
         </div>
-        <label>
-          Wallet address for approval
-          <input type="text" name="ownerApproveAddress" data-action="approve-address" value="${escapeHtml(order.ownerBtcAddress || ownerAddressInput.value || "")}" />
-        </label>
-        <div class="order-messages" data-action="messages"></div>
-        <label>
-          Reply / note
-          <textarea rows="3" data-action="message-body" placeholder="Reply to this order"></textarea>
-        </label>
-        <button class="btn ghost" data-action="send-message">Send message</button>
+      </div>
+      <div class="order-meta">
+        <div><span class="mono">Requested by:</span> ${htmlEscape(o.requestedBy || "")}</div>
+        <div><span class="mono">Amounts:</span> ${o.funAmount} FUN -> ${o.btcAmount} BTC @ ${o.btcRate || "n/a"}</div>
+        <div><span class="mono">Owner wallet:</span> ${htmlEscape(o.ownerBtcAddress || "")}</div>
+        <div><span class="mono">Note:</span> ${htmlEscape(o.note || "")}</div>
       </div>
     `;
-    ordersTable.appendChild(row);
-  });
-}
-
-async function loadOrders() {
-  ordersHint.textContent = "";
-  const tenantId = selectedTenantId && selectedTenantId !== "all" ? selectedTenantId : null;
-  const query = tenantId ? `?tenantId=${encodeURIComponent(tenantId)}` : "";
-  try {
-    const res = await apiFetch(`/api/v1/purchase-orders${query}`);
-    ordersCache = res?.orders || [];
-    renderOrders(ordersCache);
-  } catch (err) {
-    ordersTable.innerHTML = `<div class=\"hint\">${escapeHtml(err.message)}</div>`;
+    els.ordersTable.appendChild(row);
   }
 }
 
-async function loadOrderMessages(orderId, container) {
-  if (!container) return;
-  container.innerHTML = "<div class=\"message-entry\">Loading messages...</div>";
+async function refreshOrders() {
+  setHint(els.ordersHint, "Loading...");
+  const tenantId = String(els.ordersTenantFilter.value || "");
+  const data = await apiFetch("/purchase-orders", { query: { tenantId } });
+  const orders = data.orders || [];
+  renderOrders(orders);
+  setHint(els.ordersHint, `Loaded ${orders.length} orders.`);
+}
+
+els.ordersTable.addEventListener("click", async (e) => {
+  const btn = e.target?.closest("button");
+  if (!btn) return;
+  const action = btn.getAttribute("data-action");
+  const id = btn.getAttribute("data-id");
+  if (!action || !id) return;
+
   try {
-    const res = await apiFetch(`/api/v1/purchase-orders/${orderId}/messages`);
-    const messages = res?.messages || [];
-    if (!messages.length) {
-      container.innerHTML = "<div class=\"message-entry\">No messages yet.</div>";
-      return;
+    if (action === "po-approve") {
+      const tenantId = String(els.ordersTenantFilter.value || "");
+      const ownerBtcAddress = String(els.ownerAddressInput.value || "").trim();
+      if (!ownerBtcAddress) return alert("Owner BTC address required (set it above).");
+      await apiFetch(`/purchase-orders/${id}/approve`, { method: "POST", body: { tenantId, ownerBtcAddress } });
     }
-    container.innerHTML = messages
-      .map(
-        (m) =>
-          `<div class=\"message-entry\"><strong>${escapeHtml(m.sender || "staff")}:</strong> ${escapeHtml(
-            m.body || ""
-          )} <span class=\"hint\">${escapeHtml(formatDate(m.createdAt))}</span></div>`
-      )
-      .join("");
-  } catch (err) {
-    container.innerHTML = `<div class=\"message-entry\">${escapeHtml(err.message)}</div>`;
-  }
-}
 
-async function approveOrder(orderId, address) {
-  await apiFetch(`/api/v1/purchase-orders/${orderId}/approve`, {
-    method: "POST",
-    body: JSON.stringify({ ownerBtcAddress: address }),
-  });
-}
-
-async function markCredited(orderId) {
-  await apiFetch(`/api/v1/purchase-orders/${orderId}/mark-credited`, {
-    method: "POST",
-    body: JSON.stringify({ note: "Credited from owner portal" }),
-  });
-}
-
-async function sendOrderMessage(orderId, body) {
-  await apiFetch(`/api/v1/purchase-orders/${orderId}/messages`, {
-    method: "POST",
-    body: JSON.stringify({ body }),
-  });
-}
-
-loginForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  if (loginSubmitting) return;
-  loginError.textContent = "";
-
-  const username = document.getElementById("loginUsername").value.trim();
-  const password = document.getElementById("loginPassword").value;
-  if (!username || !password) {
-    loginError.textContent = "Username and password are required.";
-    return;
-  }
-
-  try {
-    loginSubmitting = true;
-    if (loginSubmit) {
-      loginSubmit.disabled = true;
-      loginSubmit.value = "Logging in...";
+    if (action === "po-mark-credited") {
+      await apiFetch(`/purchase-orders/${id}/mark-credited`, { method: "POST", body: { note: "Credited" } });
     }
-    const res = await apiFetch("/api/v1/staff/login", {
-      method: "POST",
-      body: JSON.stringify({ username, password }),
+
+    if (action === "po-ack") {
+      await apiFetch(`/purchase-orders/${id}/acknowledge`, { method: "POST", body: { note: "Acknowledged" } });
+    }
+
+    await refreshOrders();
+  } catch (err) {
+    alert(err.message || "Action failed");
+  }
+});
+
+function startOrdersAuto() {
+  if (!ORDERS_POLL_MS) return;
+  if (state.ordersTimer) return;
+  state.ordersTimer = setInterval(() => {
+    refreshOrders().catch(() => {});
+  }, ORDERS_POLL_MS);
+  state.ordersAuto = true;
+  els.ordersAutoToggle.textContent = "Auto ✓";
+}
+
+function stopOrdersAuto() {
+  if (state.ordersTimer) {
+    clearInterval(state.ordersTimer);
+    state.ordersTimer = null;
+  }
+  state.ordersAuto = false;
+  if (els.ordersAutoToggle) els.ordersAutoToggle.textContent = "Auto";
+}
+
+els.ordersAutoToggle.addEventListener("click", () => {
+  if (state.ordersAuto) stopOrdersAuto();
+  else startOrdersAuto();
+});
+
+async function refreshAll() {
+  await Promise.allSettled([loadBrand(), loadSystemConfig(), loadTenants()]);
+  await loadOwnerAddress();
+  await refreshOrders();
+  // Preload configs for visible tenant rows (lazy: only first 4)
+  for (const t of state.tenants.slice(0, 4)) {
+    refreshTenantConfig(t.id);
+  }
+}
+
+// --------------------
+// Boot
+// --------------------
+
+(function init() {
+  document.body.classList.add("login-active");
+
+  const stored = loadAuth();
+  if (stored?.token) {
+    state.token = stored.token;
+    state.staff = stored.staff || null;
+    showConsole();
+    refreshAll().catch((e) => {
+      console.error(e);
+      // token likely invalid
+      clearAuth();
+      state.token = null;
+      state.staff = null;
+      showLogin();
     });
-    const token = res?.token || res?.tokens?.accessToken;
-    if (!token) throw new Error("Invalid login response");
-    authToken = token;
-    localStorage.setItem(TOKEN_KEY, token);
-    await requireOwnerSession();
-    setAuthed(true);
-    await loadDistributors();
-    await loadTenants();
-    await Promise.all([loadBrand(), loadOrders()]);
-  } catch (err) {
-    loginError.textContent = err.message;
-  } finally {
-    loginSubmitting = false;
-    if (loginSubmit) {
-      loginSubmit.disabled = false;
-      loginSubmit.value = "Login";
-    }
-  }
-});
-
-if (logoutBtn) {
-  logoutBtn.addEventListener("click", () => {
-    clearAuth();
-    setAuthed(false);
-  });
-}
-
-brandRefresh.addEventListener("click", loadBrand);
-brandSave.addEventListener("click", saveBrand);
-tenantsRefresh.addEventListener("click", loadTenants);
-
-tenantCreateForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const name = document.getElementById("tenantName").value.trim();
-  const status = document.getElementById("tenantStatus").value;
-  const distributorId = tenantDistributor?.value || null;
-  if (!name) return;
-
-  await apiFetch("/api/v1/owner/tenants", {
-    method: "POST",
-    body: JSON.stringify({ name, status, distributorId }),
-  });
-
-  document.getElementById("tenantName").value = "";
-  if (tenantDistributor) tenantDistributor.value = "";
-  await loadTenants();
-});
-
-tenantsTable.addEventListener("click", async (event) => {
-  const target = event.target;
-  if (!(target instanceof HTMLElement)) return;
-  if (target.dataset.action !== "issue") return;
-
-  const tenantId = target.dataset.tenant;
-  if (!tenantId) return;
-
-  const creditsInput = tenantsTable.querySelector(`input[data-action=\"credits\"][data-tenant=\"${tenantId}\"]`);
-  const poolInput = tenantsTable.querySelector(`input[data-action=\"pool\"][data-tenant=\"${tenantId}\"]`);
-  const memoInput = tenantsTable.querySelector(`input[data-action=\"memo\"][data-tenant=\"${tenantId}\"]`);
-
-  const creditsCents = toCents(creditsInput?.value || 0) || 0;
-  const poolCents = toCents(poolInput?.value || 0) || 0;
-  const memo = memoInput?.value || null;
-
-  if (creditsCents <= 0 && poolCents <= 0) {
-    alert("Enter a credit or pool amount.");
     return;
   }
 
-  try {
-    await issueTenantFunds(tenantId, creditsCents, poolCents, memo);
-    if (creditsInput) creditsInput.value = "";
-    if (poolInput) poolInput.value = "";
-    if (memoInput) memoInput.value = "";
-    await loadTenants();
-  } catch (err) {
-    alert(err.message);
-  }
-});
-
-distributorsRefresh.addEventListener("click", loadDistributors);
-
-distributorCreateForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const name = document.getElementById("distributorName").value.trim();
-  const status = document.getElementById("distributorStatus").value;
-  if (!name) return;
-
-  await apiFetch("/api/v1/owner/distributors", {
-    method: "POST",
-    body: JSON.stringify({ name, status }),
-  });
-
-  document.getElementById("distributorName").value = "";
-  await loadDistributors();
-});
-
-ordersRefresh.addEventListener("click", loadOrders);
-ownerAddressSave.addEventListener("click", saveOwnerAddress);
-if (wipeAllBtn) {
-  wipeAllBtn.addEventListener("click", wipeAllData);
-}
-
-ordersTenantFilter.addEventListener("change", async () => {
-  selectedTenantId = ordersTenantFilter.value || "all";
-  await loadOwnerAddress(selectedTenantId);
-  await loadOrders();
-});
-
-ordersTable.addEventListener("click", async (event) => {
-  const target = event.target;
-  if (!(target instanceof HTMLElement)) return;
-  const row = target.closest(".table-row");
-  if (!row) return;
-  const orderId = row.dataset.orderId;
-  if (!orderId) return;
-
-  if (target.dataset.action === "toggle") {
-    const details = row.querySelector(".order-details");
-    if (!details) return;
-    const isHidden = details.hasAttribute("hidden");
-    if (isHidden) {
-      details.removeAttribute("hidden");
-      const messagesContainer = details.querySelector('[data-action="messages"]');
-      await loadOrderMessages(orderId, messagesContainer);
-    } else {
-      details.setAttribute("hidden", "");
-    }
-  }
-
-  if (target.dataset.action === "approve") {
-    const addressInput = row.querySelector('[data-action="approve-address"]');
-    const address = addressInput ? addressInput.value.trim() : ownerAddressInput.value.trim();
-    try {
-      await approveOrder(orderId, address);
-      await loadOrders();
-    } catch (err) {
-      alert(err.message);
-    }
-  }
-
-  if (target.dataset.action === "mark-credited") {
-    try {
-      await markCredited(orderId);
-      await loadOrders();
-    } catch (err) {
-      alert(err.message);
-    }
-  }
-
-  if (target.dataset.action === "send-message") {
-    const messageInput = row.querySelector('[data-action="message-body"]');
-    const body = messageInput ? messageInput.value.trim() : "";
-    if (!body) {
-      alert("Enter a message.");
-      return;
-    }
-    try {
-      await sendOrderMessage(orderId, body);
-      if (messageInput) messageInput.value = "";
-      const messagesContainer = row.querySelector('[data-action="messages"]');
-      await loadOrderMessages(orderId, messagesContainer);
-    } catch (err) {
-      alert(err.message);
-    }
-  }
-});
-
-setAuthed(!!authToken);
-async function bootWithToken() {
-  try {
-    await requireOwnerSession();
-    setAuthed(true);
-    await loadDistributors();
-    await loadTenants();
-    await loadOwnerAddress(selectedTenantId);
-    await Promise.all([loadBrand(), loadOrders()]);
-  } catch (err) {
-    clearAuth();
-    setAuthed(false);
-    loginError.textContent = err.message;
-  }
-}
-
-if (authToken) {
-  bootWithToken();
-}
+  showLogin();
+})();

@@ -120,6 +120,7 @@
           </div>
         </header>
 
+        
         <section class="grid" id="console" hidden>
         <div class="card">
           <div class="card-header">
@@ -139,31 +140,67 @@
         <div class="card">
           <div class="card-header">
             <div>
-              <h2>Tenants</h2>
-              <p>Create tenants and issue credits or voucher pool allocations.</p>
+              <h2>System Configuration</h2>
+              <p>Global feature toggles (maintenance, purchase orders, etc.).</p>
+            </div>
+            <div class="actions">
+              <button class="btn ghost" id="systemRefresh">Refresh</button>
+              <button class="btn primary" id="systemSave">Save</button>
+            </div>
+          </div>
+
+          <div class="toggles" id="systemToggles"></div>
+          <p class="hint" id="systemHint"></p>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2>Tenants / Distributors</h2>
+              <p>Create a tenant (tenant = distributor) + bootstrap an admin login, then seed credits and voucher pool.</p>
             </div>
             <button class="btn ghost" id="tenantsRefresh">Refresh</button>
           </div>
 
-          <form class="form inline" id="tenantCreateForm">
-            <label>
-              Tenant name
-              <input type="text" id="tenantName" placeholder="New Operator" />
-            </label>
-            <label>
-              Distributor
-              <select id="tenantDistributor">
-                <option value="">None</option>
-              </select>
-            </label>
-            <label>
-              Status
-              <select id="tenantStatus">
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
-            </label>
-            <button type="submit" class="btn primary">Create</button>
+          <form class="form" id="tenantCreateForm">
+            <div class="form-grid">
+              <label>
+                Tenant name
+                <input type="text" id="tenantName" placeholder="New Operator" />
+              </label>
+              <label>
+                Status
+                <select id="tenantStatus">
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </label>
+              <label>
+                Seed credits (FUN cents)
+                <input type="number" id="tenantSeedCredits" placeholder="0" min="0" step="1" />
+              </label>
+              <label>
+                Seed voucher pool (FUN cents)
+                <input type="number" id="tenantSeedPool" placeholder="0" min="0" step="1" />
+              </label>
+              <label>
+                Admin username (optional)
+                <input type="text" id="tenantAdminUsername" placeholder="auto-generated" />
+              </label>
+              <label>
+                Admin email (optional)
+                <input type="email" id="tenantAdminEmail" placeholder="admin@tenant.com" />
+              </label>
+              <label>
+                Admin password (optional)
+                <input type="text" id="tenantAdminPassword" placeholder="auto-generated" />
+              </label>
+            </div>
+
+            <div class="actions">
+              <button type="submit" class="btn primary">Create tenant</button>
+              <span class="hint" id="tenantCreateHint"></span>
+            </div>
           </form>
 
           <div class="table" id="tenantsTable"></div>
@@ -172,37 +209,13 @@
         <div class="card">
           <div class="card-header">
             <div>
-              <h2>Distributors</h2>
-              <p>Create distributor records for tenant grouping.</p>
-            </div>
-            <button class="btn ghost" id="distributorsRefresh">Refresh</button>
-          </div>
-
-          <form class="form inline" id="distributorCreateForm">
-            <label>
-              Distributor name
-              <input type="text" id="distributorName" placeholder="Distribution Group" />
-            </label>
-            <label>
-              Status
-              <select id="distributorStatus">
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
-            </label>
-            <button type="submit" class="btn primary">Create</button>
-          </form>
-
-          <div class="table" id="distributorsTable"></div>
-        </div>
-
-        <div class="card">
-          <div class="card-header">
-            <div>
               <h2>Owner Inbox</h2>
               <p>Funcoin orders and owner notes by tenant.</p>
             </div>
-            <button class="btn ghost" id="ordersRefresh">Refresh</button>
+            <div class="actions">
+              <button class="btn ghost" id="ordersRefresh">Refresh</button>
+              <button class="btn ghost" id="ordersAutoToggle">Auto</button>
+            </div>
           </div>
 
           <div class="form inline">
@@ -220,29 +233,8 @@
 
           <div class="table" id="ordersTable"></div>
         </div>
-
-        <div class="card">
-          <div class="card-header">
-            <div>
-              <h2>System Reset</h2>
-              <p>Erase all tenant data across the platform. Owner accounts are preserved.</p>
-            </div>
-          </div>
-
-          <div class="form inline">
-            <label>
-              Confirmation phrase
-              <input type="text" id="wipeAllConfirm" placeholder="Type ERASE ALL" />
-            </label>
-            <label>
-              Owner password
-              <input type="password" id="wipeAllPassword" placeholder="Password" autocomplete="current-password" />
-            </label>
-            <button type="button" class="btn danger" id="wipeAllBtn">Erase all data</button>
-          </div>
-          <p class="form-error" id="wipeAllHint"></p>
-        </div>
         </section>
+
       </div>
     </main>
 

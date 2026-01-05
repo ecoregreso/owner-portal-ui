@@ -458,12 +458,6 @@ textarea {
   border-color: rgba(39, 217, 255, 0.35);
 }
 
-.btn.danger {
-  background: linear-gradient(135deg, rgba(255, 71, 97, 0.3), rgba(255, 71, 97, 0.08));
-  color: var(--danger);
-  border-color: rgba(255, 71, 97, 0.45);
-}
-
 .btn.ghost {
   background: transparent;
   color: var(--text);
@@ -613,4 +607,76 @@ textarea {
   .login-button {
     width: min(130px, 100%);
   }
+}
+
+/* --- Added: system + tenant config UI --- */
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.form-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  align-items: end;
+}
+
+.toggles {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(7, 10, 16, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.toggle .meta {
+  display: grid;
+  gap: 2px;
+}
+
+.toggle .title {
+  font-size: 0.95rem;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.toggle .desc {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.toggle input[type="checkbox"] {
+  width: 46px;
+  height: 24px;
+  accent-color: var(--accent);
+}
+
+.inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.small {
+  font-size: 0.85rem;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
