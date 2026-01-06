@@ -206,6 +206,36 @@
           <div class="table" id="tenantsTable"></div>
         </div>
 
+        <div class="card danger">
+          <div class="card-header">
+            <div>
+              <h2>Tenant Data Reset</h2>
+              <p>Irreversibly deletes all data and staff accounts for a tenant. Tenant record remains.</p>
+            </div>
+          </div>
+
+          <div class="form-grid">
+            <label>
+              Tenant
+              <select id="wipeTenantSelect"></select>
+            </label>
+            <label>
+              Confirmation phrase
+              <input type="text" id="wipeTenantConfirm" placeholder="WIPE &lt;tenantId&gt;" />
+            </label>
+            <label>
+              Current password
+              <input type="password" id="wipeTenantPassword" placeholder="Password" autocomplete="current-password" />
+            </label>
+            <div class="actions">
+              <button type="button" class="btn danger" id="wipeTenantBtn">Wipe tenant data</button>
+              <span class="hint" id="wipeTenantHint"></span>
+            </div>
+          </div>
+
+          <p class="hint">Type <span class="mono" id="wipeTenantPhrase">WIPE &lt;tenantId&gt;</span> to confirm.</p>
+        </div>
+
         <div class="card">
           <div class="card-header">
             <div>

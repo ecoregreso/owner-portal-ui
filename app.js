@@ -50,6 +50,14 @@ const els = {
   ownerAddressInput: document.getElementById("ownerAddressInput"),
   ownerAddressSave: document.getElementById("ownerAddressSave"),
 
+  // Tenant wipe
+  wipeTenantSelect: document.getElementById("wipeTenantSelect"),
+  wipeTenantConfirm: document.getElementById("wipeTenantConfirm"),
+  wipeTenantPassword: document.getElementById("wipeTenantPassword"),
+  wipeTenantBtn: document.getElementById("wipeTenantBtn"),
+  wipeTenantHint: document.getElementById("wipeTenantHint"),
+  wipeTenantPhrase: document.getElementById("wipeTenantPhrase"),
+
   // System reset
   wipeAllConfirm: document.getElementById("wipeAllConfirm"),
   wipeAllPassword: document.getElementById("wipeAllPassword"),
@@ -64,6 +72,7 @@ let state = {
   token: null,
   staff: null,
   tenants: [],
+  wipeTenantId: "",
   systemConfig: null,
   ordersAuto: false,
   ordersTimer: null,
@@ -338,6 +347,7 @@ async function loadTenants() {
   }
 
   renderTenantsTable();
+  renderWipeTenantOptions();
 }
 
 function renderTenantsTable() {
@@ -405,6 +415,45 @@ function renderTenantsTable() {
 
   els.tenantsTable.innerHTML = "";
   for (const r of rows) els.tenantsTable.appendChild(r);
+}
+
+function wipeTenantPhrase(tenantId) {
+  if (!tenantId) return "WIPE <tenantId>";
+  return `WIPE ${tenantId}`;
+}
+
+function updateWipeTenantPhrase() {
+  const phrase = wipeTenantPhrase(state.wipeTenantId);
+  if (els.wipeTenantPhrase) els.wipeTenantPhrase.textContent = phrase;
+  if (els.wipeTenantConfirm) els.wipeTenantConfirm.placeholder = phrase;
+}
+
+function renderWipeTenantOptions() {
+  if (!els.wipeTenantSelect) return;
+  els.wipeTenantSelect.innerHTML = "";
+
+  if (!state.tenants.length) {
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = "No tenants available";
+    els.wipeTenantSelect.appendChild(opt);
+    state.wipeTenantId = "";
+    updateWipeTenantPhrase();
+    return;
+  }
+
+  for (const t of state.tenants) {
+    const opt = document.createElement("option");
+    opt.value = t.id;
+    opt.textContent = `${t.name} (${t.id.slice(0, 8)})`;
+    els.wipeTenantSelect.appendChild(opt);
+  }
+
+  if (!state.wipeTenantId || !state.tenants.some((t) => t.id === state.wipeTenantId)) {
+    state.wipeTenantId = state.tenants[0].id;
+  }
+  els.wipeTenantSelect.value = state.wipeTenantId;
+  updateWipeTenantPhrase();
 }
 
 async function refreshTenantConfig(tenantId) {
@@ -539,6 +588,64 @@ els.tenantsTable.addEventListener("click", async (e) => {
     return saveTenantConfig(tenantId);
   }
 });
+
+if (els.wipeTenantSelect) {
+  els.wipeTenantSelect.addEventListener("change", (e) => {
+    state.wipeTenantId = String(e.target.value || "");
+    updateWipeTenantPhrase();
+  });
+}
+
+// --------------------
+// Tenant wipe
+// --------------------
+
+async function wipeTenantData() {
+  setHint(els.wipeTenantHint, "");
+
+  const tenantId = state.wipeTenantId || String(els.wipeTenantSelect?.value || "");
+  if (!tenantId) {
+    return setHint(els.wipeTenantHint, "Select a tenant first.", "bad");
+  }
+
+  const phrase = wipeTenantPhrase(tenantId);
+  const confirm = String(els.wipeTenantConfirm?.value || "").trim();
+  const password = String(els.wipeTenantPassword?.value || "").trim();
+
+  if (confirm !== phrase) {
+    return setHint(els.wipeTenantHint, `Type "${phrase}" to confirm.`, "bad");
+  }
+  if (!password) {
+    return setHint(els.wipeTenantHint, "Password is required.", "bad");
+  }
+
+  const proceed = window.confirm(
+    "This will permanently delete ALL data and staff accounts for this tenant. This cannot be undone."
+  );
+  if (!proceed) return;
+
+  if (els.wipeTenantBtn) els.wipeTenantBtn.disabled = true;
+  setHint(els.wipeTenantHint, "Wiping...");
+  try {
+    await apiFetch(`/admin/tenants/${tenantId}/wipe`, {
+      method: "POST",
+      body: { confirm, password },
+    });
+    setHint(els.wipeTenantHint, "Tenant data wiped.");
+    if (els.wipeTenantConfirm) els.wipeTenantConfirm.value = "";
+    if (els.wipeTenantPassword) els.wipeTenantPassword.value = "";
+    await loadTenants();
+    await refreshOrders();
+  } catch (err) {
+    setHint(els.wipeTenantHint, err.message || "Wipe failed", "bad");
+  } finally {
+    if (els.wipeTenantBtn) els.wipeTenantBtn.disabled = false;
+  }
+}
+
+if (els.wipeTenantBtn) {
+  els.wipeTenantBtn.addEventListener("click", () => wipeTenantData().catch((e) => setHint(els.wipeTenantHint, e.message, "bad")));
+}
 
 // --------------------
 // Orders
