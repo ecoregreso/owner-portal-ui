@@ -49,9 +49,16 @@ const els = {
   ordersTenantFilter: document.getElementById("ordersTenantFilter"),
   ownerAddressInput: document.getElementById("ownerAddressInput"),
   ownerAddressSave: document.getElementById("ownerAddressSave"),
+
+  // System reset
+  wipeAllConfirm: document.getElementById("wipeAllConfirm"),
+  wipeAllPassword: document.getElementById("wipeAllPassword"),
+  wipeAllBtn: document.getElementById("wipeAllBtn"),
+  wipeAllHint: document.getElementById("wipeAllHint"),
 };
 
 const STORAGE_KEY = "ptu_owner_auth";
+const WIPE_ALL_PHRASE = "ERASE ALL";
 
 let state = {
   token: null,
@@ -664,6 +671,51 @@ els.ordersAutoToggle.addEventListener("click", () => {
   if (state.ordersAuto) stopOrdersAuto();
   else startOrdersAuto();
 });
+
+// --------------------
+// System reset
+// --------------------
+
+async function wipeAllTenants() {
+  setHint(els.wipeAllHint, "");
+
+  const confirm = String(els.wipeAllConfirm?.value || "").trim();
+  const password = String(els.wipeAllPassword?.value || "").trim();
+
+  if (confirm !== WIPE_ALL_PHRASE) {
+    return setHint(els.wipeAllHint, `Type "${WIPE_ALL_PHRASE}" to confirm.`, "bad");
+  }
+  if (!password) {
+    return setHint(els.wipeAllHint, "Password is required.", "bad");
+  }
+
+  const proceed = window.confirm(
+    "This will permanently delete ALL tenant data and staff accounts across all tenants. This cannot be undone."
+  );
+  if (!proceed) return;
+
+  if (els.wipeAllBtn) els.wipeAllBtn.disabled = true;
+  setHint(els.wipeAllHint, "Wiping...");
+  try {
+    await apiFetch("/owner/wipe-all", {
+      method: "POST",
+      body: { confirm, password },
+    });
+    setHint(els.wipeAllHint, "All tenant data wiped.");
+    if (els.wipeAllConfirm) els.wipeAllConfirm.value = "";
+    if (els.wipeAllPassword) els.wipeAllPassword.value = "";
+    await loadTenants();
+    await refreshOrders();
+  } catch (err) {
+    setHint(els.wipeAllHint, err.message || "Wipe failed", "bad");
+  } finally {
+    if (els.wipeAllBtn) els.wipeAllBtn.disabled = false;
+  }
+}
+
+if (els.wipeAllBtn) {
+  els.wipeAllBtn.addEventListener("click", () => wipeAllTenants().catch((e) => setHint(els.wipeAllHint, e.message, "bad")));
+}
 
 async function refreshAll() {
   await Promise.allSettled([loadBrand(), loadSystemConfig(), loadTenants()]);

@@ -390,6 +390,11 @@ body.login-active .page {
   gap: 16px;
 }
 
+.card.danger {
+  border-color: rgba(255, 71, 97, 0.45);
+  background: linear-gradient(150deg, rgba(255, 71, 97, 0.08), rgba(12, 16, 24, 0.8));
+}
+
 .card-header {
   display: flex;
   justify-content: space-between;
@@ -456,6 +461,12 @@ textarea {
   background: linear-gradient(135deg, rgba(39, 217, 255, 0.24), rgba(39, 217, 255, 0.05));
   color: var(--accent);
   border-color: rgba(39, 217, 255, 0.35);
+}
+
+.btn.danger {
+  background: linear-gradient(135deg, rgba(255, 71, 97, 0.28), rgba(255, 71, 97, 0.08));
+  color: #fff;
+  border-color: rgba(255, 71, 97, 0.5);
 }
 
 .btn.ghost {
