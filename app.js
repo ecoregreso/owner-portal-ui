@@ -372,6 +372,7 @@ function renderTenantsTable() {
         <div class="inline-actions">
           <button class="btn ghost" data-action="copy-login" data-tenant="${htmlEscape(t.id)}">Copy admin login URL</button>
           <button class="btn primary" data-action="reset-admin" data-tenant="${htmlEscape(t.id)}">Reset admin password</button>
+          <button class="btn danger" data-action="delete-tenant" data-tenant="${htmlEscape(t.id)}">Delete tenant</button>
         </div>
       </div>
 
@@ -558,6 +559,31 @@ els.tenantsTable.addEventListener("click", async (e) => {
     }
     return;
   }
+
+  if (action === "delete-tenant") {
+    const ok = prompt(
+      `Type DELETE to disable this tenant.
+
+Tenant: ${tenantId}
+
+This will set status=inactive and deactivate all staff in that tenant.`
+    );
+    if (String(ok || "").trim().toUpperCase() !== "DELETE") return;
+
+    btn.disabled = true;
+    try {
+      await apiFetch(`/owner/tenants/${tenantId}`, { method: "DELETE" });
+      await loadTenants();
+      await refreshOrders();
+      alert("Tenant disabled.");
+    } catch (err) {
+      alert(err.message || "Delete failed");
+    } finally {
+      btn.disabled = false;
+    }
+    return;
+  }
+
 
   if (action === "issue" || action === "alloc") {
     const hint = document.querySelector(`[data-hint="${tenantId}"]`);
