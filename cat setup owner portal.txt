@@ -1,0 +1,113 @@
+cat > setup_owner_portal.sh <<'BASH'
+#!/usr/bin/env bash
+set -euo pipefail
+
+# ---------- defaults ----------
+ZIP_PATH="${ZIP_PATH:-}"
+DEST_DIR="${DEST_DIR:-$HOME/Projects/PlayTime-USA/owner-portal-ui}"
+API_BASE="${API_BASE:-}"
+ADMIN_UI_BASE="${ADMIN_UI_BASE:-}"
+PORT="${PORT:-3000}"
+BASIC_AUTH_USER="${BASIC_AUTH_USER:-}"
+BASIC_AUTH_PASS="${BASIC_AUTH_PASS:-}"
+START="${START:-0}"
+
+# ---------- helpers ----------
+die(){ echo "❌ $*" >&2; exit 1; }
+need(){ command -v "$1" >/dev/null 2>&1 || die "Missing dependency: $1"; }
+
+# ---------- deps ----------
+need unzip
+need python3
+
+# ---------- find zip if not provided ----------
+if [[ -z "$ZIP_PATH" ]]; then
+  for candidate in \
+    "$HOME/Downloads/owner-portal-1-6-26.3-topnotch.zip" \
+    "$HOME/Downloads/owner-portal-1-6-26.3-top-notch.zip" \
+    "$HOME/Downloads/owner-portal-1-6-26.2.zip"
+  do
+    if [[ -f "$candidate" ]]; then
+      ZIP_PATH="$candidate"
+      break
+    fi
+  done
+fi
+
+[[ -f "${ZIP_PATH:-}" ]] || die "Zip not found. Set ZIP_PATH=/path/to/zip and rerun."
+
+mkdir -p "$DEST_DIR"
+echo "📦 Unzipping:"
+echo "   ZIP:  $ZIP_PATH"
+echo "   DEST: $DEST_DIR"
+unzip -o "$ZIP_PATH" -d "$DEST_DIR" >/dev/null
+
+# zip contains owner-portal/ folder
+ROOT="$DEST_DIR/owner-portal"
+[[ -d "$ROOT" ]] || die "Expected folder not found: $ROOT"
+
+CONFIG="$ROOT/config.js"
+[[ -f "$CONFIG" ]] || die "Missing config.js at $CONFIG"
+
+# ---------- patch config.js ----------
+if [[ -z "$API_BASE" || -z "$ADMIN_UI_BASE" ]]; then
+  echo ""
+  echo "⚠️  API_BASE and/or ADMIN_UI_BASE not set."
+  echo "   Example:"
+  echo "   API_BASE='https://playtimeusa-backend-v2.onrender.com/api/v1'"
+  echo "   ADMIN_UI_BASE='https://admin-ui-v2.onrender.com'"
+  echo ""
+  echo "Leaving config.js as-is for now."
+else
+  python3 - <<PY
+import re, pathlib, sys
+p = pathlib.Path(r"$CONFIG")
+s = p.read_text(encoding="utf-8")
+
+api = r"$API_BASE".strip()
+adm = r"$ADMIN_UI_BASE".strip()
+
+def sub(key, val, text):
+    # matches: key: "..."
+    pat = rf'({re.escape(key)}\\s*:\\s*")[^"]*(")'
+    if not re.search(pat, text):
+        print(f"❌ Could not find key in config.js: {key}", file=sys.stderr)
+        sys.exit(1)
+    return re.sub(pat, rf'\\1{val}\\2', text)
+
+s2 = s
+s2 = sub("apiBase", api, s2)
+s2 = sub("adminUiBase", adm, s2)
+p.write_text(s2, encoding="utf-8")
+print("✅ Patched config.js")
+print("   apiBase     =", api)
+print("   adminUiBase =", adm)
+PY
+fi
+
+echo ""
+echo "✅ Owner Portal ready at: $ROOT"
+echo "   Files:"
+ls -1 "$ROOT" | sed 's/^/   - /'
+
+echo ""
+echo "▶ Run locally (no auth):"
+echo "   cd \"$ROOT\" && PORT=$PORT node server.js"
+echo ""
+echo "🔒 Run with Basic Auth (recommended):"
+echo "   cd \"$ROOT\" && BASIC_AUTH_USER=YOURUSER BASIC_AUTH_PASS='YOURPASS' PORT=$PORT node server.js"
+echo ""
+
+# ---------- optional start ----------
+if [[ "$START" == "1" ]]; then
+  need node
+  echo "🚀 Starting server..."
+  export PORT
+  export BASIC_AUTH_USER
+  export BASIC_AUTH_PASS
+  (cd "$ROOT" && node server.js)
+fi
+BASH
+
+chmod +x setup_owner_portal.sh
+
