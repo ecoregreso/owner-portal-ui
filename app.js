@@ -517,11 +517,16 @@ els.tenantCreateForm.addEventListener("submit", async (e) => {
     });
 
     const bootstrap = data.bootstrap || {};
+    if (bootstrap.username) {
+      els.tenantAdminUsername.value = bootstrap.username;
+    }
+    if (bootstrap.password) {
+      els.tenantAdminPassword.value = bootstrap.password;
+    }
     const msg = `Created. Admin: ${bootstrap.username} / ${bootstrap.password} | ${bootstrap.adminUiUrl || tenantAdminLoginUrl(data.tenant?.id)}`;
     setHint(els.tenantCreateHint, msg);
 
-    // clear only sensitive fields
-    els.tenantAdminPassword.value = "";
+    // leave credentials visible so they can be copied into admin-ui login
 
     await loadTenants();
     await refreshOrders();

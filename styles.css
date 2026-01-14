@@ -637,6 +637,13 @@ textarea {
   align-items: end;
 }
 
+.form-note {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
 .toggles {
   display: grid;
   gap: 12px;
