@@ -567,11 +567,11 @@ els.tenantsTable.addEventListener("click", async (e) => {
 
   if (action === "delete-tenant") {
     const ok = prompt(
-      `Type DELETE to disable this tenant.
+      `Type DELETE to permanently delete this tenant.
 
 Tenant: ${tenantId}
 
-This will set status=inactive and deactivate all staff in that tenant.`
+This will delete the tenant record and all tenant data. This cannot be undone.`
     );
     if (String(ok || "").trim().toUpperCase() !== "DELETE") return;
 
@@ -580,7 +580,7 @@ This will set status=inactive and deactivate all staff in that tenant.`
       await apiFetch(`/owner/tenants/${tenantId}`, { method: "DELETE" });
       await loadTenants();
       await refreshOrders();
-      alert("Tenant disabled.");
+      alert("Tenant deleted.");
     } catch (err) {
       alert(err.message || "Delete failed");
     } finally {
