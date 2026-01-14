@@ -40,6 +40,7 @@ const els = {
   tenantAdminUsername: document.getElementById("tenantAdminUsername"),
   tenantAdminEmail: document.getElementById("tenantAdminEmail"),
   tenantAdminPassword: document.getElementById("tenantAdminPassword"),
+  tenantCreateToggles: document.getElementById("tenantCreateToggles"),
 
   // Orders
   ordersTable: document.getElementById("ordersTable"),
@@ -262,6 +263,15 @@ const TOGGLE_SCHEMA = [
   { key: "messagingEnabled", title: "Messaging", desc: "Enable staff messaging and inbox." },
   { key: "pushEnabled", title: "Push notifications", desc: "Allow push notifications to devices." },
 ];
+const DEFAULT_SYSTEM_CONFIG = {
+  maintenanceMode: false,
+  purchaseOrdersEnabled: true,
+  vouchersEnabled: true,
+  depositsEnabled: true,
+  withdrawalsEnabled: true,
+  messagingEnabled: true,
+  pushEnabled: true,
+};
 
 function renderToggles(container, config, prefix) {
   container.innerHTML = "";
@@ -291,11 +301,18 @@ function readToggles(prefix) {
   return out;
 }
 
+function renderTenantCreateToggles() {
+  if (!els.tenantCreateToggles) return;
+  const base = state.systemConfig || DEFAULT_SYSTEM_CONFIG;
+  renderToggles(els.tenantCreateToggles, base, "create");
+}
+
 async function loadSystemConfig() {
   setHint(els.systemHint, "Loading...");
   const data = await apiFetch("/owner/config/system");
   state.systemConfig = data.config || {};
   renderToggles(els.systemToggles, state.systemConfig, "sys");
+  renderTenantCreateToggles();
   setHint(els.systemHint, "Loaded.");
 }
 
@@ -304,6 +321,7 @@ async function saveSystemConfig() {
     const config = readToggles("sys");
     const data = await apiFetch("/owner/config/system", { method: "POST", body: { config } });
     state.systemConfig = data.config || config;
+    renderTenantCreateToggles();
     setHint(els.systemHint, "Saved.");
   } catch (err) {
     setHint(els.systemHint, err.message || "Save failed", "bad");
@@ -493,6 +511,7 @@ els.tenantCreateForm.addEventListener("submit", async (e) => {
   const status = String(els.tenantStatus.value || "active").trim();
   const seedCreditsCents = Number(els.tenantSeedCredits.value || 0) || 0;
   const seedVoucherPoolCents = Number(els.tenantSeedPool.value || 0) || 0;
+  const tenantConfig = els.tenantCreateToggles ? readToggles("create") : null;
 
   const admin = {
     username: String(els.tenantAdminUsername.value || "").trim() || undefined,
@@ -513,6 +532,7 @@ els.tenantCreateForm.addEventListener("submit", async (e) => {
         seedCreditsCents,
         seedVoucherPoolCents,
         admin,
+        ...(tenantConfig && Object.keys(tenantConfig).length ? { tenantConfig } : {}),
       },
     });
 
@@ -530,6 +550,7 @@ els.tenantCreateForm.addEventListener("submit", async (e) => {
 
     await loadTenants();
     await refreshOrders();
+    renderTenantCreateToggles();
   } catch (err) {
     setHint(els.tenantCreateHint, err.message || "Create failed", "bad");
   }
